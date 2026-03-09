@@ -1,0 +1,17 @@
+# logs
+*.log
+
+# exports
+*.csv
+*.xlsx
+
+# temp
+tmp/
+temp/
+
+# vscode
+.vscode/
+
+# secrets
+.env
+credentials.json
