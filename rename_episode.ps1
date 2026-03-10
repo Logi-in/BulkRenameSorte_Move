@@ -448,24 +448,34 @@ foreach($file in $files){
 
     $p=Parse-EpisodeName $file.Name
 
-    if($p.Success){
+	if($p.Success){
 
-        $items+=[PSCustomObject]@{
-            File=$file
-            Series=$p.Series
-            Season=$p.Season
-            Episode=$p.Episode
-            Part=$p.Part
-            MultiFrom=$p.MultiStart
-            MultiTo=$p.MultiEnd
-            IsGerman=(Is-German $file.Name)
-            IsRepack=(Has-Repack $file.Name)
-            IsSubbed=(Is-Subbed $file.Name)
-        }
-    }
-    else{
-        $ignored+=$file
-    }
+		$items+=[PSCustomObject]@{
+			File=$file
+			Series=$p.Series
+			Season=$p.Season
+			Episode=$p.Episode
+			Part=$p.Part
+			MultiFrom=$p.MultiStart
+			MultiTo=$p.MultiEnd
+			IsMovie=$false
+		}
+	}
+	else{
+
+		$movieName=[System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+
+		$items+=[PSCustomObject]@{
+			File=$file
+			Series=$movieName
+			Season=0
+			Episode=0
+			Part=$null
+			MultiFrom=$null
+			MultiTo=$null
+			IsMovie=$true
+		}
+	}
 }
 
 if($items.Count -eq 0){
@@ -485,9 +495,13 @@ Write-Host ""
 
 foreach($i in $items){
 
-    $tag = Format-EpisodeTag $i.Season $i.Episode
-
-    Write-Host "$($i.Series) $tag"
+    if($i.IsMovie){
+        Write-Host "$($i.Series) (Movie)"
+    }
+    else{
+        $tag = Format-EpisodeTag $i.Season $i.Episode
+        Write-Host "$($i.Series) $tag"
+    }
 }
 
 Write-Host ""
@@ -589,16 +603,31 @@ foreach($i in $items){
     $targetRoot=$showRootMap[$i.Series]
 
     # SMART MATCH
-    $seriesFolder=Resolve-SeriesFolderSmart $targetRoot $i.Series
+	if($i.IsMovie){
 
-    $seasonFolder = Join-Path $seriesFolder ("S{0:D2}" -f $i.Season)
+		# Filme direkt ins Movies Root
+		$seasonFolder = $targetRoot
 
-    if(!(Test-Path $seasonFolder)){
-        New-Item -ItemType Directory -Path $seasonFolder | Out-Null
-    }
+	}
+	else{
 
-    $newName = "{0} - S{1:D2}E{2:D2}{3}{4}" -f $i.Series,$i.Season,$i.Episode,$suffix,$i.File.Extension
+		# Serienordner finden
+		$seriesFolder = Resolve-SeriesFolderSmart $targetRoot $i.Series
 
+		$seasonFolder = Join-Path $seriesFolder ("S{0:D2}" -f $i.Season)
+
+		if(!(Test-Path $seasonFolder)){
+			New-Item -ItemType Directory -Path $seasonFolder | Out-Null
+		}
+
+	}
+
+	if($i.IsMovie){
+		$newName = "{0}{1}" -f $i.Series,$i.File.Extension
+	}
+	else{
+		$newName = "{0} - S{1:D2}E{2:D2}{3}{4}" -f $i.Series,$i.Season,$i.Episode,$suffix,$i.File.Extension
+	}
     $targetPath=Join-Path $seasonFolder $newName
 
     if(Test-Path $targetPath){continue}
