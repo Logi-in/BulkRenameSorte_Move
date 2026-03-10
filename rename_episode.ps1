@@ -1,11 +1,5 @@
-<<<<<<< HEAD:rename_episode V7.ps1
-﻿# ==============================================================
-# Batch Serien Sortierer V7
-# ==============================================================
-=======
 ﻿
 
->>>>>>> 265a160 (update mit config path):rename_episode.ps1
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 Add-Type -AssemblyName System.Windows.Forms
 
@@ -394,9 +388,13 @@ function Parse-EpisodeName($filename){
 
         if($endEp -gt $startEp){
 
-            $seriesPart=$base.Substring(0,$mMulti.Index)
-            $seriesPart=$seriesPart -replace "[^a-zA-Z0-9äöüÄÖÜß]+"," "
-            $seriesPart=$seriesPart.Trim()
+			$seriesPart=$base.Substring(0,$mMulti.Index)
+			$seriesPart=$seriesPart -replace "[^a-zA-Z0-9äöüÄÖÜß]+"," "
+			$seriesPart=$seriesPart.Trim()
+
+			# Jahreszahlen entfernen
+			$seriesPart=$seriesPart -replace "\b(19|20)\d{2}$",""
+			$seriesPart=$seriesPart.Trim()
 
             return @{
                 Series=$seriesPart
@@ -410,27 +408,31 @@ function Parse-EpisodeName($filename){
         }
     }
 
-    $m=[regex]::Match($base,"(?i)S(\d{1,2})E(\d{1,2})")
+		$m=[regex]::Match($base,"(?i)S(\d{1,2})E(\d{1,2})")
 
-    if($m.Success){
+		if($m.Success){
 
-        $season=[int]$m.Groups[1].Value
-        $episode=[int]$m.Groups[2].Value
+			$season=[int]$m.Groups[1].Value
+			$episode=[int]$m.Groups[2].Value
 
-        $seriesPart=$base.Substring(0,$m.Index)
-        $seriesPart=$seriesPart -replace "[^a-zA-Z0-9äöüÄÖÜß]+"," "
-        $seriesPart=$seriesPart.Trim()
+			$seriesPart=$base.Substring(0,$m.Index)
+			$seriesPart=$seriesPart -replace "[^a-zA-Z0-9äöüÄÖÜß]+"," "
+			$seriesPart=$seriesPart.Trim()
 
-        return @{
-            Series=$seriesPart
-            Season=$season
-            Episode=$episode
-            Part=$part
-            MultiStart=$null
-            MultiEnd=$null
-            Success=$true
-        }
-    }
+			# Jahreszahlen entfernen
+			$seriesPart=$seriesPart -replace "\b(19|20)\d{2}$",""
+			$seriesPart=$seriesPart.Trim()
+
+			return @{
+				Series=$seriesPart
+				Season=$season
+				Episode=$episode
+				Part=$part
+				MultiStart=$null
+				MultiEnd=$null
+				Success=$true
+			}
+		}
 
     return @{Success=$false}
 }
@@ -589,13 +591,13 @@ foreach($i in $items){
     # SMART MATCH
     $seriesFolder=Resolve-SeriesFolderSmart $targetRoot $i.Series
 
-    $seasonFolder=Join-Path $seriesFolder ("S"+$i.Season.ToString("00"))
+    $seasonFolder = Join-Path $seriesFolder ("S{0:D2}" -f $i.Season)
 
     if(!(Test-Path $seasonFolder)){
         New-Item -ItemType Directory -Path $seasonFolder | Out-Null
     }
 
-    $newName="$($i.Series) - S$($i.Season.ToString("00"))E$($i.Episode.ToString("00"))$suffix$($i.File.Extension)"
+    $newName = "{0} - S{1:D2}E{2:D2}{3}{4}" -f $i.Series,$i.Season,$i.Episode,$suffix,$i.File.Extension
 
     $targetPath=Join-Path $seasonFolder $newName
 
