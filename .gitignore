@@ -15,3 +15,5 @@ temp/
 # secrets
 .env
 credentials.json
+.config
+gitscript.ps1

@@ -1,8 +1,159 @@
+<<<<<<< HEAD:rename_episode V7.ps1
 ﻿# ==============================================================
 # Batch Serien Sortierer V7
 # ==============================================================
+=======
+﻿
+
+>>>>>>> 265a160 (update mit config path):rename_episode.ps1
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 Add-Type -AssemblyName System.Windows.Forms
+
+
+# ==========================================
+# CONFIG
+# ==========================================
+
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ConfigFile = Join-Path $ScriptDir "BRSM.config"
+
+function Select-Folder($text){
+
+    $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dialog.Description = $text
+    $dialog.ShowNewFolderButton = $true
+
+    if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){
+        return $dialog.SelectedPath
+    }
+
+    return $null
+}
+
+function Initialize-Config {
+
+    Write-Host ""
+    Write-Host "Keine BRSM.config gefunden." -ForegroundColor Yellow
+    Write-Host ""
+
+    Write-Host "Config Wizard starten?" -ForegroundColor Cyan
+    Write-Host "1 = Ja"
+    Write-Host "2 = Abbrechen"
+
+    $start = Read-Host "Auswahl"
+
+    if($start -ne "1"){
+        Write-Host "Abbruch."
+        pause
+        exit
+    }
+
+    $seriesPath = $null
+    $animePath  = $null
+    $moviesPath = $null
+
+    $wizardDone = $false
+
+    while(-not $wizardDone){
+
+        Write-Host ""
+        Write-Host "Library hinzufügen:"
+        Write-Host "1 Anime"
+        Write-Host "2 Serie"
+        Write-Host "3 Movie"
+        Write-Host "0 Fertig"
+
+        $choice = Read-Host "Auswahl"
+
+        switch($choice){
+
+            "1"{
+                if(!$animePath){
+                    $animePath = Select-Folder "Anime Ordner auswählen"
+                }
+                else{
+                    Write-Host "Anime bereits gesetzt." -ForegroundColor Yellow
+                }
+            }
+
+            "2"{
+                if(!$seriesPath){
+                    $seriesPath = Select-Folder "Series Ordner auswählen"
+                }
+                else{
+                    Write-Host "Series bereits gesetzt." -ForegroundColor Yellow
+                }
+            }
+
+            "3"{
+                if(!$moviesPath){
+                    $moviesPath = Select-Folder "Movies Ordner auswählen"
+                }
+                else{
+                    Write-Host "Movies bereits gesetzt." -ForegroundColor Yellow
+                }
+            }
+
+            "0"{
+                $wizardDone = $true
+            }
+
+            default{
+                Write-Host "Ungültige Auswahl." -ForegroundColor Red
+            }
+        }
+    }
+
+    $config = @{
+        media_paths = @{
+            Series = $seriesPath
+            Anime  = $animePath
+            Movies = $moviesPath
+        }
+    }
+
+    $config | ConvertTo-Json -Depth 5 | Set-Content $ConfigFile -Encoding UTF8
+
+    Write-Host ""
+    Write-Host "Config erstellt:" -ForegroundColor Green
+    Write-Host $ConfigFile
+}
+
+function Load-Config {
+
+    return (Get-Content $ConfigFile -Raw | ConvertFrom-Json)
+}
+
+if(!(Test-Path $ConfigFile)){
+    Initialize-Config
+}
+
+$config = Load-Config
+
+$seriesRoot = $config.media_paths.Series
+$animeRoot  = $config.media_paths.Anime
+$moviesRoot = $config.media_paths.Movies
+
+if([string]::IsNullOrWhiteSpace($seriesRoot) -or
+   [string]::IsNullOrWhiteSpace($animeRoot)  -or
+   [string]::IsNullOrWhiteSpace($moviesRoot)){
+
+    Write-Host ""
+    Write-Host "BRSM.config ist unvollständig." -ForegroundColor Red
+    Write-Host "Bitte löschen und Script neu starten:"
+    Write-Host $ConfigFile
+    pause
+    exit
+}
+
+foreach($root in @($seriesRoot,$animeRoot,$moviesRoot)){
+    if (!(Test-Path $root)) {
+        Write-Host "Zielbasis existiert nicht: $root" -ForegroundColor Red
+        pause
+        exit
+    }
+}
+
 
 Write-Host "=== Batch Serien Sortierer V7 ===" -ForegroundColor Cyan
 Write-Host ""
@@ -27,21 +178,8 @@ Write-Host "Gewählter Ordner:" -ForegroundColor Yellow
 Write-Host "  $sourceFolder"
 Write-Host ""
 
-# ==========================================
-# Zielbasen
-# ==========================================
 
-$seriesRoot = "PATH-FESTLEGEN"
-$animeRoot  = "PATH-FESTLEGEN"
-$moviesRoot = "PATH-FESTLEGEN"
 
-foreach($root in @($seriesRoot,$animeRoot,$moviesRoot)){
-    if (!(Test-Path $root)) {
-        Write-Host "Zielbasis existiert nicht: $root" -ForegroundColor Red
-        pause
-        exit
-    }
-}
 
 # ==========================================
 # Video Extensions
@@ -335,6 +473,66 @@ if($items.Count -eq 0){
     pause
     exit
 }
+# ==========================================
+# PREVIEW 1
+# ==========================================
+
+Write-Host ""
+Write-Host "=== PREVIEW 1 ===" -ForegroundColor Cyan
+Write-Host ""
+
+foreach($i in $items){
+
+    $tag = Format-EpisodeTag $i.Season $i.Episode
+
+    Write-Host "$($i.Series) $tag"
+}
+
+Write-Host ""
+Write-Host "Gefundene Episoden: $($items.Count)" -ForegroundColor Yellow
+Write-Host ""
+
+# ==========================================
+# STAFFEL CHECK
+# ==========================================
+
+Write-Host ""
+Write-Host "=== STAFFEL CHECK ===" -ForegroundColor Cyan
+
+$grouped = $items | Group-Object Series
+
+foreach($g in $grouped){
+
+    Write-Host ""
+    Write-Host $g.Name -ForegroundColor Yellow
+
+    $seasons = $g.Group | Group-Object Season
+
+    foreach($s in $seasons){
+
+        $eps = $s.Group | Select-Object -ExpandProperty Episode | Sort-Object
+
+        $min = ($eps | Measure-Object -Minimum).Minimum
+        $max = ($eps | Measure-Object -Maximum).Maximum
+
+        $missing = @()
+
+        for($e=$min;$e -le $max;$e++){
+            if($eps -notcontains $e){
+                $missing += $e
+            }
+        }
+
+        if($missing.Count -eq 0){
+            Write-Host ("S{0:D2} OK" -f $s.Name)
+        }
+        else{
+            Write-Host ("S{0:D2} FEHLT: {1}" -f $s.Name, ($missing -join ",")) -ForegroundColor Red
+        }
+    }
+}
+
+Write-Host ""
 
 # ==========================================
 # SHOW ZUORDNUNG
